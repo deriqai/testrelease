@@ -1,8 +1,12 @@
 # _config.yml
 title: DeriqAI Releases
 description: DeriqAI releases
-baseurl: ""
-url: "https://deriqai.github.io/releases"
+baseurl: "/releases"
+url: "https://deriqai.github.io"
 
 # Theme settings
-theme: minima
+# Use the jekyll-remote-theme plugin to use a GitHub theme
+plugins:
+  - jekyll-remote-theme
+
+remote_theme: pages-themes/primer@latest
