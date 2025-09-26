@@ -1,8 +1,3 @@
----
-layout: default
-title: Installation and Usage Instructions
----
-
  # deriqai-opentelemetry Library Documentation
  
  This document provides instructions on how to deploy the `deriqai-opentelemetry` package and how to use its API for instrumenting your Python applications.
