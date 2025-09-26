@@ -1,0 +1,8 @@
+# _config.yml
+title: DeriqAI Releases
+description: DeriqAI releases
+baseurl: ""
+url: "https://deriqai.github.io/releases"
+
+# Theme settings
+theme: minima
