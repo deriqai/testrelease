@@ -9,4 +9,4 @@ url: "https://deriqai.github.io"
 plugins:
   - jekyll-remote-theme
 
-remote_theme: pages-themes/primer@latest
+remote_theme: pages-themes/primer
