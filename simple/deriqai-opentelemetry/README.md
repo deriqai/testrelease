@@ -1,4 +1,6 @@
 ---
+layout: default
+title: Installation and Usage Instructions
 ---
 
  # deriqai-opentelemetry Library Documentation
