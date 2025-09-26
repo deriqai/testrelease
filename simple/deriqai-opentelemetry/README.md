@@ -6,21 +6,21 @@
  
  The `deriqai-opentelemetry` package is hosted on a custom Python package index. To install it, you need to configure your package manager (`pip` or `uv`) to use this index.
  
- **Index URL**: `https://deriqai.github.io/testrelease/simple/`
+ **Index URL**: `https://deriqai.github.io/releases/simple/`
  
  ### Using `pip`
  
  You can install the package using `pip` by providing the extra index URL via the command line.
  
  ```bash
- pip install deriqai-opentelemetry --extra-index-url https://deriqai.github.io/testrelease/simple/
+ pip install deriqai-opentelemetry --extra-index-url https://deriqai.github.io/releases/simple/
  ```
  
  To make this permanent for your project, you can add it to your `requirements.txt`:
  
  ```plaintext
  # requirements.txt
- --extra-index-url https://deriqai.github.io/testrelease/simple/
+ --extra-index-url https://deriqai.github.io/releases/simple/
  deriqai-opentelemetry>=0.0.1
  ```
  
@@ -46,12 +46,12 @@
  
  # Define the custom index
  [[tool.uv.index]]
- name = "deriqai-testrelease"
- url = "https://deriqai.github.io/testrelease/simple/"
+ name = "deriqai-releases"
+ url = "https://deriqai.github.io/releases/simple/"
  
  # Map the package to the custom index
  [tool.uv.sources]
- deriqai-opentelemetry = { index = "deriqai-testrelease" }
+ deriqai-opentelemetry = { index = "deriqai-releases" }
  ```
  
  After configuring `pyproject.toml`, you can install dependencies as usual:
