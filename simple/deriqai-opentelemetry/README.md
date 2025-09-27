@@ -95,7 +95,9 @@ from deriqai import opentelemetry as dqotel
 from opentelemetry import trace
 
 def setup_observability():
-    # By defauilt log records are directed to console. User handlers=[<handler>...] parameter in configure to redirect output elsewhere e.g. handlers=[file_handler]
+    # attach a file handler if log records are to be redirected to a local file. By defauilt log records are directed to console.
+    #file_handler = logging.FileHandler("<your file name>")
+
 
     """Configures DeriQAI OpenTelemetry for the application."""
     # 1. Configure DeriQAI OpenTelemetry
@@ -103,15 +105,16 @@ def setup_observability():
         app_type=dqotel.AppType.OTEL_CORE,
         resource={"service.name": "my-standalone-app", "service.version": "1.10.0", "deployment.environment": "production"},
         level=logging.INFO,
+        #handlers=[file_handler]
     )
 
 setup_observability()
 
-# 3. Get a logger and tracer after configuration
-main_logger = logging.getLogger("main_func")
-tracer = trace.get_tracer(__name__)
-
 def main():
+    # Get a logger and tracer
+    main_logger = logging.getLogger("main_func")
+    tracer = trace.get_tracer(__name__)
+
     with tracer.start_as_current_span("main-operation") as span:
         # Use 'extra', an optional parameter, for application-specific context.
         # This data will be attached to the log record for better observability.
@@ -126,6 +129,8 @@ def main():
             # This raises a new exception while handling the first one.
             # Python will implicitly chain them.
             raise ValueError("Something went wrong during error handling!")
+
+
 
 if __name__ == "__main__":
     main_runner_logger = logging.getLogger("main_runner")
