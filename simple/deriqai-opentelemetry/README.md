@@ -89,37 +89,53 @@ To ensure consistency across projects and documentation, we recommend using a si
  For a basic Python script, use `AppType.OTEL_CORE`. This sets up the OpenTelemetry SDK for tracing and logging without any framework-specific integrations.
  
  ```python
-    # main.py
-    import logging
-    from deriqai import opentelemetry as dqotel
-    from opentelemetry import trace
+# main.py
+import logging
+from deriqai import opentelemetry as dqotel
+from opentelemetry import trace
 
-    def setup_observability():
-        """Configures DeriQAI OpenTelemetry for the application."""
-        # 1. Configure DeriQAI OpenTelemetry
-        dqotel.configure(
-            app_type=dqotel.AppType.OTEL_CORE,
-            resource={"service.name": "my-standalone-app", "service.version": "1.10.0", "deployment.environment": "production"},
-            level=logging.INFO
-        )
+def setup_observability():
+    # By defauilt log records are directed to console. User handlers=[<handler>...] parameter in configure to redirect output elsewhere e.g. handlers=[file_handler]
 
-    # Setup DeriQAI OpenTelemetry
-    setup_observability()
+    """Configures DeriQAI OpenTelemetry for the application."""
+    # 1. Configure DeriQAI OpenTelemetry
+    dqotel.configure(
+        app_type=dqotel.AppType.OTEL_CORE,
+        resource={"service.name": "my-standalone-app", "service.version": "1.10.0", "deployment.environment": "production"},
+        level=logging.INFO,
+    )
 
-    # 2. Get a logger and tracer after configuration
-    main_logger = logging.getLogger("my_app")
-    tracer = trace.get_tracer(__name__)
+setup_observability()
 
-    def main():
-        with tracer.start_as_current_span("main-operation") as span:
-            # Use 'extra', an optional parameter, for application-specific context.
-            # This data will be attached to the log record for better observability.
-            log_context = {"processing.mode": "batch"}
-            main_logger.info("Hello from my standalone app!", extra=log_context)
+# 3. Get a logger and tracer after configuration
+main_logger = logging.getLogger("main_func")
+tracer = trace.get_tracer(__name__)
 
-            # Your application logic here
-    if __name__ == "__main__":
+def main():
+    with tracer.start_as_current_span("main-operation") as span:
+        # Use 'extra', an optional parameter, for application-specific context.
+        # This data will be attached to the log record for better observability.
+        log_context = {"processing.mode": "batch"}
+        main_logger.info("Hello from my standalone app!", extra=log_context)
+
+        try:
+            # This will raise the first ZeroDivisionError
+            1/0
+        except ZeroDivisionError:
+            main_logger.error("Caught the first division error, about to cause another one...", exc_info=True)
+            # This raises a new exception while handling the first one.
+            # Python will implicitly chain them.
+            raise ValueError("Something went wrong during error handling!")
+
+if __name__ == "__main__":
+    main_runner_logger = logging.getLogger("main_runner")
+    try:
         main()
+    except Exception:
+        # This will catch the final ValueError and log its full chained traceback.
+        main_runner_logger.exception("Caught final exception from main")
+    
+    main_runner_logger.info("Continue as normal post exception.")
  ```
  
  ### Example 2: Flask Application
@@ -127,39 +143,39 @@ To ensure consistency across projects and documentation, we recommend using a si
  To instrument a Flask application, pass the Flask `app` object and use `AppType.FLASK`. The library will automatically instrument Flask to create spans for incoming requests.
  
  ```python
-    # app.py
-    import logging
-    from flask import Flask
-    from deriqai import opentelemetry as dqotel
+# app.py
+import logging
+from flask import Flask
+from deriqai import opentelemetry as dqotel
 
-    def setup_observability(flask_app: Flask):
-        """Configures DeriQAI OpenTelemetry for the Flask application."""
-        # 1. Configure DeriQAI for Flask
-        dqotel.configure(
-            app=flask_app,
-            app_type=dqotel.AppType.FLASK,
-            resource={"service.name": "my-flask-app", "service.version": "1.2.3", "deployment.environment": "production"},
-            level=logging.INFO
-        )
+def setup_observability(flask_app: Flask):
+    """Configures DeriQAI OpenTelemetry for the Flask application."""
+    # 1. Configure DeriQAI for Flask
+    dqotel.configure(
+        app=flask_app,
+        app_type=dqotel.AppType.FLASK,
+        resource={"service.name": "my-flask-app", "service.version": "1.2.3", "deployment.environment": "production"},
+        level=logging.INFO
+    )
 
-    app = Flask(__name__)
-    
-    # Setup DeriQAI OpenTelemetry for Flask
-    setup_observability(app)
+app = Flask(__name__)
 
-    flask_logger = logging.getLogger("flask_app")
-    # Make Werkzeug less noisy
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
+# Setup DeriQAI OpenTelemetry for Flask
+setup_observability(app)
 
-    @app.route('/')
-    def index():
-        # Use 'extra', an optional parameter, to add business-logic context, like a customer tier or feature flag.
-        log_context = {"customer.tier": "premium", "feature.flag.new_ui": True}
-        flask_logger.info("Received a request to the index route.", extra=log_context)
+flask_logger = logging.getLogger("flask_app")
+# Make Werkzeug less noisy
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-        return "Request received!"
-    if __name__ == '__main__':
-        app.run(debug=False, port=4000)
+@app.route('/')
+def index():
+    # Use 'extra', an optional parameter, to add business-logic context, like a customer tier or feature flag.
+    log_context = {"customer.tier": "premium", "feature.flag.new_ui": True}
+    flask_logger.info("Received a request to the index route.", extra=log_context)
+
+    return "Request received!"
+if __name__ == '__main__':
+    app.run(debug=False, port=4000)
  ```
  
  ### Example 3: Combined Flask + Celery OpenTelemetry Example
@@ -172,102 +188,102 @@ To ensure consistency across projects and documentation, we recommend using a si
  ### 1. Task Definition (`tasks.py`)
  This file is shared by both the Flask producer and the Celery worker. It defines the Celery application and the background task.
  ```python
-    # tasks.py
-    import logging
-    from celery import Celery
+# tasks.py
+import logging
+from celery import Celery
 
-    # Initialize the Celery app, using RabbitMQ as the broker.
-    celery_app = Celery('tasks', broker='pyamqp://guest@localhost//')
-    celery_logger = logging.getLogger("celery_task")
+# Initialize the Celery app, using RabbitMQ as the broker.
+celery_app = Celery('tasks', broker='pyamqp://guest@localhost//')
+celery_logger = logging.getLogger("celery_task")
 
-    @celery_app.task
-    def my_background_task(x, y):
-        """A sample background task that divide two numbers."""
-        try:
-            # Enrich logs with task-specific data.
-            log_context = {"task.input": {"x": x, "y": y}}
-            celery_logger.info("Starting task execution.", extra=log_context)
-            result = x / y
-            celery_logger.info(f"Task finished", extra={"task.result": result})
-            return result
-        except Exception:
-            celery_logger.error("Task failed!", exc_info=True)
-            raise
+@celery_app.task
+def my_background_task(x, y):
+    """A sample background task that divide two numbers."""
+    try:
+        # Enrich logs with task-specific data.
+        log_context = {"task.input": {"x": x, "y": y}}
+        celery_logger.info("Starting task execution.", extra=log_context)
+        result = x / y
+        celery_logger.info(f"Task finished", extra={"task.result": result})
+        return result
+    except Exception:
+        celery_logger.error("Task failed!", exc_info=True)
+        raise
  ```
  ### 2. Flask Application (Producer) (`flask_producer_app.py`)
  This file contains the Flask application. It's configured with deriqai-opentelemetry for both its Flask role and its Celery PRODUCER role. This is essential to ensure the trace context from an incoming web request is correctly passed to the Celery task.
  ```python
-        # flask_producer_app.py
-        import logging
-        from flask import Flask
-        from tasks import celery_app, my_background_task
-        from deriqai import opentelemetry as dqotel
+# flask_producer_app.py
+import logging
+from flask import Flask
+from tasks import celery_app, my_background_task
+from deriqai import opentelemetry as dqotel
 
-        def setup_observability(flask_app: Flask, celery_instance):
-            """Configures OpenTelemetry for both Flask and the Celery producer."""
-            resource = {"service.name": "flask-celery-producer", "service.version": "0.0.5", "deployment.environment": "production"}
-            # 1. Configure for Flask to handle incoming web requests
-            dqotel.configure(
-                app=flask_app,
-                app_type=dqotel.AppType.FLASK,
-                resource=resource,
-                level=logging.INFO
-            )
-            # 2. Configure for Celery Producer to propagate trace context
-            dqotel.configure(
-                app=celery_instance,
-                app_type=dqotel.AppType.CELERY,
-                role=dqotel.CeleryRole.PRODUCER,
-                resource=resource,
-                level=logging.INFO
-            )
+def setup_observability(flask_app: Flask, celery_instance):
+    """Configures OpenTelemetry for both Flask and the Celery producer."""
+    resource = {"service.name": "flask-celery-producer", "service.version": "0.0.5", "deployment.environment": "production"}
+    # 1. Configure for Flask to handle incoming web requests
+    dqotel.configure(
+        app=flask_app,
+        app_type=dqotel.AppType.FLASK,
+        resource=resource,
+        level=logging.INFO
+    )
+    # 2. Configure for Celery Producer to propagate trace context
+    dqotel.configure(
+        app=celery_instance,
+        app_type=dqotel.AppType.CELERY,
+        role=dqotel.CeleryRole.PRODUCER,
+        resource=resource,
+        level=logging.INFO
+    )
 
-        app = Flask(__name__)
+app = Flask(__name__)
 
-        # Setup DeriQAI OpenTelemetry for Flask and Celery producer
-        setup_observability(app, celery_app)
+# Setup DeriQAI OpenTelemetry for Flask and Celery producer
+setup_observability(app, celery_app)
 
-        flask_logger = logging.getLogger("flask_app")
-        # Make Werkzeug less noisy
-        logging.getLogger("werkzeug").setLevel(logging.WARNING)
+flask_logger = logging.getLogger("flask_app")
+# Make Werkzeug less noisy
+logging.getLogger("werkzeug").setLevel(logging.WARNING)
 
-        @app.route('/')
-        def index():
-            """Endpoint to dispatch a background task."""
-            flask_logger.info("Received a request to the index route.")
-            task = my_background_task.delay(10, 20)
-            return f"Task {task.id} sent to worker."
+@app.route('/')
+def index():
+    """Endpoint to dispatch a background task."""
+    flask_logger.info("Received a request to the index route.")
+    task = my_background_task.delay(10, 20)
+    return f"Task {task.id} sent to worker."
 
-        if __name__ == '__main__':
-            app.run(debug=False, port=4000)
+if __name__ == '__main__':
+    app.run(debug=False, port=4000)
   ```
  ### 3. Celery Worker (`celery_worker.py`)
  This file is the entrypoint for the Celery worker. It configures deriqai-opentelemetry in its Celery WORKER role. This enables the worker to receive the trace context from the producer and continue the distributed trace.
  ```python
-        # celery_worker.py
-        import logging
-        from deriqai import opentelemetry as dqotel
-        from tasks import celery_app
+# celery_worker.py
+import logging
+from deriqai import opentelemetry as dqotel
+from tasks import celery_app
 
-        def setup_observability():
-            """Configures OpenTelemetry for the Celery worker."""
-            dqotel.configure(
-                app=celery_app,
-                app_type=dqotel.AppType.CELERY,
-                role=dqotel.CeleryRole.WORKER,
-                resource={"service.name": "my-celery-worker", "service.version": "0.2.3", "deployment.environment": "production"},
-                level=logging.INFO
-            )
+def setup_observability():
+    """Configures OpenTelemetry for the Celery worker."""
+    dqotel.configure(
+        app=celery_app,
+        app_type=dqotel.AppType.CELERY,
+        role=dqotel.CeleryRole.WORKER,
+        resource={"service.name": "my-celery-worker", "service.version": "0.2.3", "deployment.environment": "production"},
+        level=logging.INFO
+    )
 
-        # Setup DeriQAI OpenTelemetry for the Celery worker
-        setup_observability()
+# Setup DeriQAI OpenTelemetry for the Celery worker
+setup_observability()
 
-        # Make Celery less noisy
-        logging.getLogger("celery").setLevel(logging.WARNING)
-        logging.getLogger("celery.app").setLevel(logging.WARNING)
-        logging.getLogger("celery.worker").setLevel(logging.WARNING)
+# Make Celery less noisy
+logging.getLogger("celery").setLevel(logging.WARNING)
+logging.getLogger("celery.app").setLevel(logging.WARNING)
+logging.getLogger("celery.worker").setLevel(logging.WARNING)
 
-        print("Celery worker instrumentation configured.")
+print("Celery worker instrumentation configured.")
  ```
  ### How to Run the Example
  **1. Install dependencies:** Make sure you have `celery`, `flask`, `deriqai-opentelemetry`, and a message broker (like RabbitMQ) installed and running.
